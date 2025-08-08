@@ -62,6 +62,7 @@ const steps = [
 
 function WaterDroplets({ step, crackTime }: { step: number; crackTime: number }) {
   const dropletsRef = useRef<THREE.Group>(null!)
+  const splashRef = useRef<THREE.Group>(null!)
   const dropletData = useRef<Array<{
     initialPos: THREE.Vector3;
     velocity: THREE.Vector3;
@@ -70,73 +71,89 @@ function WaterDroplets({ step, crackTime }: { step: number; crackTime: number })
     rotation: number;
   }>>([])
   
-  // Initialize droplet data
+  // Initialize droplet data with more particles for bigger splash
   if (dropletData.current.length === 0) {
-    for (let i = 0; i < 20; i++) {
+    for (let i = 0; i < 40; i++) {
       dropletData.current.push({
         initialPos: new THREE.Vector3(
-          (Math.random() - 0.5) * 1.5,
-          0.2 + Math.random() * 0.3,
-          (Math.random() - 0.5) * 1.5
-        ),
-        velocity: new THREE.Vector3(
           (Math.random() - 0.5) * 2,
-          -1.5 - Math.random() * 2,
+          0.3 + Math.random() * 0.5,
           (Math.random() - 0.5) * 2
         ),
-        life: Math.random() * 2,
-        size: 0.02 + Math.random() * 0.03,
+        velocity: new THREE.Vector3(
+          (Math.random() - 0.5) * 4,
+          -0.5 - Math.random() * 3,
+          (Math.random() - 0.5) * 4
+        ),
+        life: Math.random() * 1.5,
+        size: 0.015 + Math.random() * 0.04,
         rotation: Math.random() * Math.PI * 2
       })
     }
   }
   
   useFrame((state) => {
+    const time = state.clock.elapsedTime - crackTime
+    
     if (dropletsRef.current && (step === 7 || step === 8)) {
-      const time = state.clock.elapsedTime - crackTime
-      
       dropletsRef.current.children.forEach((droplet, i) => {
         if (droplet instanceof THREE.Mesh) {
           const data = dropletData.current[i]
-          const dropletTime = (time + data.life) % 3
+          const dropletTime = (time + data.life) % 4
           
-          // Physics-based movement
-          const gravity = -4.8
-          const airResistance = 0.98
+          // Enhanced physics with more dramatic movement
+          const gravity = -6
+          const airResistance = 0.96
+          const bounce = dropletTime > 2 ? 0.3 : 1
           
-          // Calculate position with physics
-          const x = data.initialPos.x + data.velocity.x * dropletTime * airResistance
+          const x = data.initialPos.x + data.velocity.x * dropletTime * airResistance * bounce
           const y = data.initialPos.y + data.velocity.y * dropletTime + 0.5 * gravity * dropletTime * dropletTime
-          const z = data.initialPos.z + data.velocity.z * dropletTime * airResistance
+          const z = data.initialPos.z + data.velocity.z * dropletTime * airResistance * bounce
           
-          droplet.position.set(x, y, z)
+          droplet.position.set(x, Math.max(y, -2.4), z)
           
-          // Rotation for more dynamic look
-          droplet.rotation.x = data.rotation + time * 2
-          droplet.rotation.z = data.rotation + time * 1.5
+          // More dramatic rotation
+          droplet.rotation.x = data.rotation + time * 3
+          droplet.rotation.z = data.rotation + time * 2.5
           
-          // Scale animation (droplets get smaller as they fall)
-          const scale = Math.max(0.3, 1 - dropletTime * 0.3)
+          // Dynamic scaling
+          const scale = Math.max(0.2, 1.2 - dropletTime * 0.4)
           droplet.scale.setScalar(scale)
           
-          // Opacity fade
           const material = droplet.material as THREE.MeshStandardMaterial
-          material.opacity = Math.max(0.2, 1 - dropletTime * 0.4)
+          material.opacity = Math.max(0.1, 1 - dropletTime * 0.3)
           
-          // Reset droplet when it hits ground or fades
-          if (y < -2.5 || dropletTime > 2.8) {
-            // Reset with slight variation
+          if (y < -2.4 || dropletTime > 3.8) {
             data.initialPos.set(
-              (Math.random() - 0.5) * 1.5,
-              0.2 + Math.random() * 0.3,
-              (Math.random() - 0.5) * 1.5
-            )
-            data.velocity.set(
               (Math.random() - 0.5) * 2,
-              -1.5 - Math.random() * 2,
+              0.3 + Math.random() * 0.5,
               (Math.random() - 0.5) * 2
             )
+            data.velocity.set(
+              (Math.random() - 0.5) * 4,
+              -0.5 - Math.random() * 3,
+              (Math.random() - 0.5) * 4
+            )
           }
+        }
+      })
+    }
+
+    // Animate splash effect
+    if (splashRef.current && step === 7) {
+      const splashTime = time % 2
+      splashRef.current.children.forEach((splash, i) => {
+        if (splash instanceof THREE.Mesh) {
+          const angle = (i / 12) * Math.PI * 2
+          const radius = splashTime * 2
+          splash.position.set(
+            Math.cos(angle) * radius,
+            -2.3 + Math.sin(splashTime * 4) * 0.2,
+            Math.sin(angle) * radius
+          )
+          splash.scale.setScalar(Math.max(0.1, 1 - splashTime * 0.5))
+          const material = splash.material as THREE.MeshStandardMaterial
+          material.opacity = Math.max(0, 0.8 - splashTime * 0.4)
         }
       })
     }
@@ -145,64 +162,88 @@ function WaterDroplets({ step, crackTime }: { step: number; crackTime: number })
   if (step < 7) return null
 
   return (
-    <group ref={dropletsRef}>
-      {/* Enhanced water droplets with varying sizes */}
-      {Array.from({ length: 20 }, (_, i) => {
-        const size = 0.02 + (i % 3) * 0.01
-        return (
-          <mesh key={i} position={[0, 0, 0]}>
-            <sphereGeometry args={[size, 8, 8]} />
+    <>
+      <group ref={dropletsRef}>
+        {/* Enhanced water droplets - more particles */}
+        {Array.from({ length: 40 }, (_, i) => {
+          const size = 0.015 + (i % 4) * 0.012
+          return (
+            <mesh key={i} position={[0, 0, 0]}>
+              <sphereGeometry args={[size, 8, 8]} />
+              <meshStandardMaterial 
+                color="#1E88E5" 
+                transparent 
+                opacity={0.9}
+                metalness={0.2}
+                roughness={0.1}
+                emissive="#4FC3F7"
+                emissiveIntensity={0.2}
+              />
+            </mesh>
+          )
+        })}
+      </group>
+
+      {/* Dramatic splash effect */}
+      <group ref={splashRef}>
+        {Array.from({ length: 12 }, (_, i) => (
+          <mesh key={`splash-ring-${i}`} position={[0, -2.3, 0]}>
+            <sphereGeometry args={[0.08, 8, 8]} />
             <meshStandardMaterial 
-              color="#4FC3F7" 
+              color="#42A5F5" 
               transparent 
-              opacity={0.9}
-              metalness={0.1}
+              opacity={0.8}
+              metalness={0.3}
               roughness={0.1}
-              emissive="#87CEEB"
-              emissiveIntensity={0.1}
+              emissive="#1976D2"
+              emissiveIntensity={0.3}
             />
           </mesh>
-        )
-      })}
+        ))}
+      </group>
       
-      {/* Water stream/splash effect */}
+      {/* Water geyser effect for step 8 */}
       {step === 8 && (
         <>
-          {/* Main water stream */}
-          <mesh position={[0, 0, 0]}>
-            <cylinderGeometry args={[0.08, 0.02, 1.5, 8]} />
+          {/* Main water geyser */}
+          <mesh position={[0, -0.5, 0]}>
+            <cylinderGeometry args={[0.15, 0.05, 2, 12]} />
             <meshStandardMaterial 
-              color="#4FC3F7" 
+              color="#1565C0" 
               transparent 
-              opacity={0.6}
-              metalness={0.1}
+              opacity={0.7}
+              metalness={0.2}
               roughness={0.1}
+              emissive="#42A5F5"
+              emissiveIntensity={0.2}
             />
           </mesh>
           
-          {/* Splash particles */}
-          {Array.from({ length: 15 }, (_, i) => (
+          {/* Spray particles */}
+          {Array.from({ length: 25 }, (_, i) => (
             <mesh 
-              key={`splash-${i}`}
+              key={`spray-${i}`}
               position={[
-                Math.sin(i * 0.4) * 0.8,
-                -1.5 + Math.cos(i * 0.3) * 0.3,
-                Math.cos(i * 0.4) * 0.8
+                Math.sin(i * 0.3) * 1.2,
+                -1 + Math.cos(i * 0.4) * 0.8,
+                Math.cos(i * 0.3) * 1.2
               ]}
             >
-              <sphereGeometry args={[0.015, 6, 6]} />
+              <sphereGeometry args={[0.02, 6, 6]} />
               <meshStandardMaterial 
-                color="#87CEEB" 
+                color="#1976D2" 
                 transparent 
-                opacity={0.7}
-                metalness={0.2}
+                opacity={0.8}
+                metalness={0.3}
                 roughness={0.1}
+                emissive="#42A5F5"
+                emissiveIntensity={0.2}
               />
             </mesh>
           ))}
         </>
       )}
-    </group>
+    </>
   )
 }
 
@@ -339,6 +380,24 @@ function Coconut({ step }: { step: number }) {
         />
       </mesh>
 
+      {/* Water inside coconut (visible when cracked) */}
+      {step >= 7 && !isTop && (
+        <mesh>
+          <sphereGeometry 
+            args={[0.85, 32, 32, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2]} 
+          />
+          <meshStandardMaterial 
+            color="#1E88E5" 
+            transparent 
+            opacity={0.8}
+            metalness={0.1}
+            roughness={0.1}
+            emissive="#42A5F5"
+            emissiveIntensity={0.1}
+          />
+        </mesh>
+      )}
+
       {/* Eyes (only on top half) */}
       {isTop && [0, 1, 2].map((i) => {
         const angle = (i * Math.PI * 2) / 3
@@ -394,6 +453,20 @@ function Coconut({ step }: { step: number }) {
               roughness={1.0}
               transparent
               opacity={0.7}
+            />
+          </mesh>
+
+          {/* Water inside whole coconut (visible through transparency) */}
+          <mesh>
+            <sphereGeometry args={[0.9, 32, 32]} />
+            <meshStandardMaterial 
+              color="#1E88E5" 
+              transparent 
+              opacity={0.6}
+              metalness={0.1}
+              roughness={0.1}
+              emissive="#42A5F5"
+              emissiveIntensity={0.1}
             />
           </mesh>
 
@@ -561,38 +634,63 @@ function Coconut({ step }: { step: number }) {
         </>
       )}
 
-      {/* Enhanced water puddle with ripple effect */}
+      {/* Enhanced water puddle with massive splash effect */}
       {(step === 7 || step === 8) && (
         <>
-          {/* Main puddle */}
+          {/* Main puddle - much larger */}
           <mesh position={[0, -2.48, 0]} rotation={[-Math.PI / 2, 0, 0]}>
-            <circleGeometry args={[1.8, 32]} />
+            <circleGeometry args={[2.5, 64]} />
             <meshStandardMaterial 
-              color="#B0E0E6" 
+              color="#1565C0" 
               transparent 
-              opacity={0.7}
-              metalness={0.2}
+              opacity={0.8}
+              metalness={0.3}
               roughness={0.1}
-              emissive="#87CEEB"
-              emissiveIntensity={0.05}
+              emissive="#42A5F5"
+              emissiveIntensity={0.1}
             />
           </mesh>
           
-          {/* Ripple effects */}
-          {Array.from({ length: 3 }, (_, i) => (
+          {/* Multiple ripple effects */}
+          {Array.from({ length: 5 }, (_, i) => (
             <mesh 
               key={`ripple-${i}`}
               position={[0, -2.47, 0]} 
               rotation={[-Math.PI / 2, 0, 0]}
-              scale={1 + i * 0.3}
+              scale={1 + i * 0.4}
             >
-              <ringGeometry args={[0.5 + i * 0.2, 0.6 + i * 0.2, 32]} />
+              <ringGeometry args={[0.8 + i * 0.3, 1.0 + i * 0.3, 64]} />
               <meshStandardMaterial 
-                color="#87CEEB" 
+                color="#1976D2" 
                 transparent 
-                opacity={0.3 - i * 0.1}
-                metalness={0.1}
+                opacity={0.4 - i * 0.08}
+                metalness={0.2}
                 roughness={0.1}
+                emissive="#42A5F5"
+                emissiveIntensity={0.1}
+              />
+            </mesh>
+          ))}
+
+          {/* Splash crown effect */}
+          {Array.from({ length: 8 }, (_, i) => (
+            <mesh 
+              key={`crown-${i}`}
+              position={[
+                Math.cos(i * Math.PI / 4) * 1.5,
+                -2.2,
+                Math.sin(i * Math.PI / 4) * 1.5
+              ]}
+            >
+              <coneGeometry args={[0.1, 0.4, 8]} />
+              <meshStandardMaterial 
+                color="#1E88E5" 
+                transparent 
+                opacity={0.7}
+                metalness={0.2}
+                roughness={0.1}
+                emissive="#42A5F5"
+                emissiveIntensity={0.2}
               />
             </mesh>
           ))}
